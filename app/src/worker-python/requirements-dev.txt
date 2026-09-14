@@ -1,0 +1,5 @@
+# Test/lint toolchain only. CI installs THIS file, not requirements.txt, so the planted
+# vulnerable runtime pins stay a Dependabot finding rather than a build dependency.
+pytest==8.3.4
+pytest-cov==6.0.0
+ruff==0.8.4

@@ -1,0 +1,74 @@
+# Azure DevOps pipeline template: build images in ACR and deploy to AKS via Helm.
+#
+# Authentication uses an ARM service connection configured for Workload Identity Federation -
+# the ADO equivalent of the OIDC federated credential the GitHub workflow uses. Neither
+# platform needs a stored secret. This is worth demonstrating side by side, because the
+# "GitHub is more modern about credentials" claim is out of date and repeating it damages
+# your credibility in the room.
+#
+# Approvals live on the ADO *environment* object, configured in the ADO UI, rather than in
+# YAML. That is a real difference from GitHub environments and it cuts both ways: less
+# reviewable in source control, but harder for a repo admin to quietly weaken.
+
+parameters:
+  - name: azureSubscription
+    type: string
+  - name: registry
+    type: string
+  - name: clusterName
+    type: string
+  - name: resourceGroup
+    type: string
+  - name: namespace
+    type: string
+  - name: imageTag
+    type: string
+    default: '$(Build.SourceVersion)'
+
+steps:
+  - task: AzureCLI@2
+    displayName: Build images in ACR
+    inputs:
+      azureSubscription: ${{ parameters.azureSubscription }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+        az acr build --registry ${{ parameters.registry }} \
+          --image contoso-fabric-api:${{ parameters.imageTag }} \
+          --file api-dotnet/Dockerfile app/src
+        az acr build --registry ${{ parameters.registry }} \
+          --image contoso-fabric-worker:${{ parameters.imageTag }} \
+          --file Dockerfile app/src/worker-python
+        az acr build --registry ${{ parameters.registry }} \
+          --image contoso-fabric-web:${{ parameters.imageTag }} \
+          --file Dockerfile app/src/web-next
+
+  - task: HelmInstaller@1
+    displayName: Install Helm
+    inputs:
+      helmVersionToInstall: latest
+
+  - task: AzureCLI@2
+    displayName: Deploy with Helm
+    inputs:
+      azureSubscription: ${{ parameters.azureSubscription }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+        az aks get-credentials \
+          --resource-group ${{ parameters.resourceGroup }} \
+          --name ${{ parameters.clusterName }} \
+          --overwrite-existing
+
+        helm upgrade --install contoso-fabric app/deploy/helm \
+          --namespace ${{ parameters.namespace }} \
+          --create-namespace \
+          --set image.registry=${{ parameters.registry }} \
+          --set image.tag=${{ parameters.imageTag }} \
+          --atomic --timeout 5m --wait
+
+        kubectl --namespace ${{ parameters.namespace }} rollout status deploy/contoso-fabric-api --timeout=180s
+        kubectl --namespace ${{ parameters.namespace }} rollout status deploy/contoso-fabric-web --timeout=180s
+        kubectl --namespace ${{ parameters.namespace }} get pods -o wide

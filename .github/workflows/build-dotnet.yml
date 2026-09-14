@@ -1,0 +1,95 @@
+# Reusable workflow: build and test the .NET API + shared library.
+#
+# Reusable workflows must live in .github/workflows to be callable. Seed repositories call
+# this one with:
+#
+#   jobs:
+#     api:
+#       uses: <org>/devops-showcase/.github/workflows/build-dotnet.yml@main
+#       with:
+#         runs-on: ubuntu-latest
+#
+# The `runs-on` input is the single knob that swaps GitHub-hosted runners for self-hosted or
+# ARC-on-AKS runners. That is Beat 8: the same workflow, three different compute models,
+# nothing else changes.
+
+name: build-dotnet
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner label(s) for the build job.
+        type: string
+        default: ubuntu-latest
+      dotnet-version:
+        description: .NET SDK version to install.
+        type: string
+        default: '9.0.x'
+      configuration:
+        description: MSBuild configuration.
+        type: string
+        default: Release
+      upload-artifacts:
+        description: Publish the API and upload it as a build artifact.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build & test
+    runs-on: ${{ inputs.runs-on }}
+    defaults:
+      run:
+        working-directory: app/src
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      # NuGet audit is on (NuGetAuditMode=direct in Directory.Build.props) so the planted
+      # Newtonsoft.Json 12.0.1 raises NU1903 here. It is a WARNING by design - CF-DEP-020
+      # is meant to be visible in the log and in Dependabot, not to break the pipeline.
+      - name: Restore
+        run: dotnet restore ContosoFabric.sln
+
+      - name: Build
+        run: dotnet build ContosoFabric.sln --configuration ${{ inputs.configuration }} --no-restore
+
+      - name: Test
+        run: >-
+          dotnet test ContosoFabric.sln
+          --configuration ${{ inputs.configuration }}
+          --no-build
+          --logger "trx;LogFileName=dotnet-tests.trx"
+          --collect "XPlat Code Coverage"
+          --results-directory ${{ github.workspace }}/artifacts/test-results
+
+      - name: Publish API
+        if: inputs.upload-artifacts
+        run: >-
+          dotnet publish api-dotnet/Contoso.Fabric.Api/Contoso.Fabric.Api.csproj
+          --configuration ${{ inputs.configuration }}
+          --no-build
+          --output ${{ github.workspace }}/artifacts/api
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-test-results
+          path: artifacts/test-results
+          if-no-files-found: warn
+
+      - name: Upload API package
+        if: inputs.upload-artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-dotnet
+          path: artifacts/api

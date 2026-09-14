@@ -1,0 +1,983 @@
+{
+  "name": "Contoso Fabric — DevOps Showcase",
+  "description": "The canonical delivery plan. This file is the single source of truth; scripts/seed-github-plan.ps1 and scripts/seed-ado-plan.ps1 are projections of it onto GitHub Issues/Projects and Azure Boards respectively. Do not edit the plan in one platform only — edit here and re-seed, or the two tracks stop being comparable.",
+  "iterationLengthDays": 14,
+  "iterations": [
+    { "key": "s1", "name": "Sprint 1", "goal": "Foundation, shared Azure infrastructure, and Track 1 live." },
+    { "key": "s2", "name": "Sprint 2", "goal": "Track 4 live. Boards/GHEC split proven end to end." },
+    { "key": "s3", "name": "Sprint 3", "goal": "Tracks 2 and 3 — GitHub Enterprise Server, air-gapped and connected." },
+    { "key": "s4", "name": "Sprint 4", "goal": "Track 5 — Azure DevOps Server — and the commercial collateral." }
+  ],
+  "streams": [
+    { "key": "build", "name": "Showcase delivery", "area": "Delivery", "description": "Work to build and operate the five-track showcase itself." },
+    { "key": "product", "name": "Contoso Fabric product", "area": "Product", "description": "The in-universe product backlog. This is the board the audience sees during Beat 1." }
+  ],
+  "labels": [
+    { "name": "epic", "color": "3E4B9E", "description": "Top-level container" },
+    { "name": "feature", "color": "5319E7", "description": "Deliverable slice of an epic" },
+    { "name": "stream:build", "color": "1D76DB", "description": "Building the showcase" },
+    { "name": "stream:product", "color": "0E8A16", "description": "Contoso Fabric product backlog" },
+    { "name": "decision", "color": "D93F0B", "description": "Needs a human answer before work can start" },
+    { "name": "blocked", "color": "B60205", "description": "Cannot proceed" },
+    { "name": "infrastructure", "color": "C2E0C6", "description": "Terraform / Azure" },
+    { "name": "narrative", "color": "FBCA04", "description": "Run of show, matrix, collateral" },
+    { "name": "supply-chain", "color": "5319E7", "description": "SBOM, provenance, base images" },
+    { "name": "reliability", "color": "006B75", "description": "Reliability and operability" },
+    { "name": "security", "color": "B60205", "description": "Security finding or remediation" },
+    { "name": "codeql", "color": "B60205", "description": "Raised by CodeQL" },
+    { "name": "remediation", "color": "D93F0B", "description": "Fixes a planted finding" },
+    { "name": "testing", "color": "BFD4F2", "description": "Test coverage" },
+    { "name": "api", "color": "1D76DB", "description": "Backend API" },
+    { "name": "frontend", "color": "BFDADC", "description": "Next.js web app" },
+    { "name": "worker", "color": "C5DEF5", "description": "Python worker" },
+    { "name": "enhancement", "color": "A2EEEF", "description": "New capability" },
+    { "name": "good first issue", "color": "7057FF", "description": "Small, well-specified" },
+    { "name": "copilot-agent", "color": "8250DF", "description": "Sized for the Copilot coding agent" }
+  ],
+
+  "items": [
+    {
+      "id": "B0",
+      "type": "epic",
+      "stream": "build",
+      "title": "Showcase foundation — application, planted findings, local verification",
+      "iteration": "s1",
+      "status": "Done",
+      "estimate": 21,
+      "labels": ["epic", "stream:build"],
+      "body": [
+        "Everything the five tracks share. One application, one findings catalogue, one set of CI templates — so that any difference the audience sees between tracks is a difference in the *platform*, not in the code.",
+        "",
+        "This epic is complete and verified: `scripts/verify-local.ps1` passes all seven stages."
+      ]
+    },
+    {
+      "id": "B0.1",
+      "type": "feature",
+      "parent": "B0",
+      "stream": "build",
+      "title": "Three-stack sample application (.NET 9, Next.js 15, Python 3.12)",
+      "iteration": "s1",
+      "status": "Done",
+      "estimate": 8,
+      "labels": ["feature", "stream:build"],
+      "body": [
+        "A single application with three genuinely different toolchains, because a showcase that only builds one language proves nothing about a platform's breadth.",
+        "",
+        "- `app/src/api-dotnet` — ASP.NET Core minimal API plus xUnit tests",
+        "- `app/src/web-next` — Next.js App Router, standalone output",
+        "- `app/src/worker-python` — scheduler/report worker, pytest and ruff",
+        "- `app/deploy/helm` — one chart, three workloads",
+        "",
+        "**Done:** 16/16 .NET tests, 26 Python tests, `tsc --noEmit` and `next build` clean."
+      ]
+    },
+    {
+      "id": "B0.2",
+      "type": "feature",
+      "parent": "B0",
+      "stream": "build",
+      "title": "Planted findings catalogue (seeds/FINDINGS.md)",
+      "iteration": "s1",
+      "status": "Done",
+      "estimate": 5,
+      "labels": ["feature", "stream:build"],
+      "body": [
+        "Every finding the demo relies on is planted deliberately, catalogued with an ID, the beat it fires on, its location, the detector that should catch it, and the expected signal.",
+        "",
+        "The catalogue is load-bearing: `scripts/verify-track.ps1` asserts against it. If a finding drifts out of the manifest, verification silently stops checking it.",
+        "",
+        "Note CF-DEP-026 — `next@15.1.6` was pinned as *current and clean* and has since acquired CVE-2025-66478. It was kept. A dependency that rotted inside an untouched lockfile is the most honest artifact in the repository."
+      ]
+    },
+    {
+      "id": "B0.3",
+      "type": "feature",
+      "parent": "B0",
+      "stream": "build",
+      "title": "Reusable CI templates for GitHub Actions and Azure Pipelines",
+      "iteration": "s1",
+      "status": "Done",
+      "estimate": 5,
+      "labels": ["feature", "stream:build"],
+      "body": [
+        "The same build, expressed twice, so the comparison is like-for-like:",
+        "",
+        "- `.github/workflows/` — reusable workflows called via `uses:` (they must live here to be callable)",
+        "- `pipelines/templates/` — the Azure Pipelines equivalents",
+        "",
+        "Both run the flaky scheduler selection five times via a `flaky-repeats` input, giving roughly a 60% chance of at least one red per run. Raise it to 15 for a guaranteed failure on stage."
+      ]
+    },
+    {
+      "id": "B0.4",
+      "type": "feature",
+      "parent": "B0",
+      "stream": "build",
+      "title": "Local verification harness (scripts/verify-local.ps1)",
+      "iteration": "s1",
+      "status": "Done",
+      "estimate": 3,
+      "labels": ["feature", "stream:build", "reliability"],
+      "body": [
+        "Runs all three stacks and prints a pass/fail table. The point is that a broken demo environment is discovered before the room, not in it.",
+        "",
+        "It deliberately reports the planted `NU1903` warning and the deselected flaky test as *expected*, so a clean run is unambiguous."
+      ]
+    },
+
+    {
+      "id": "B1",
+      "type": "epic",
+      "stream": "build",
+      "title": "Shared Azure infrastructure",
+      "iteration": "s1",
+      "status": "Todo",
+      "estimate": 16,
+      "labels": ["epic", "stream:build", "infrastructure"],
+      "body": [
+        "The Azure substrate every track deploys into: one resource group, one registry, one AKS cluster, one Log Analytics workspace. Shared so that Beat 9 and Beat 10 look identical across tracks and the only variable is the pipeline that got there."
+      ]
+    },
+    {
+      "id": "B1.0",
+      "type": "story",
+      "parent": "B1",
+      "stream": "build",
+      "title": "Decision: Terraform or Bicep for all five tracks",
+      "iteration": "s1",
+      "status": "Done",
+      "estimate": 1,
+      "labels": ["decision", "blocked", "stream:build", "infrastructure"],
+      "body": [
+        "**This blocks every infrastructure item below it.**",
+        "",
+        "Recommendation: **Terraform**. Bicep can describe the Azure resources perfectly well, but it cannot reach the GitHub organisation, repository rulesets, environments, or the Azure DevOps project. Choosing Bicep means roughly half the environment is configured by hand and therefore cannot be torn down and rebuilt reliably between demos.",
+        "",
+        "The counter-argument, stated fairly: if the customer is a Bicep shop, showing them Terraform is a distraction. In that case the honest answer is Bicep for Azure plus a separate Terraform stack for the platform providers — two languages, but no hand-configuration.",
+        "",
+        "### Acceptance criteria",
+        "- A decision is recorded here with its reasoning.",
+        "- `infra/` is laid out accordingly before B1.1 starts."
+      ]
+    },
+    {
+      "id": "B1.1",
+      "type": "feature",
+      "parent": "B1",
+      "stream": "build",
+      "title": "infra 00-shared — resource group, ACR, Log Analytics, App Insights, storage",
+      "iteration": "s1",
+      "status": "In Progress",
+      "estimate": 5,
+      "labels": ["feature", "stream:build", "infrastructure"],
+      "body": [
+        "The stack everything else depends on.",
+        "",
+        "Plants **CF-IAC-040** — a storage account that permits public blob access and does not enforce HTTPS-only traffic. It must be a real, scannable misconfiguration, not a comment saying it is one.",
+        "",
+        "### Acceptance criteria",
+        "- Plan and apply cleanly from a cold subscription.",
+        "- ACR SKU is Basic; task vCPU duration is billed at zero, so remote builds cost nothing.",
+        "- CF-IAC-040 is present and detected by the scanner named in `seeds/FINDINGS.md`."
+      ]
+    },
+    {
+      "id": "B1.2",
+      "type": "feature",
+      "parent": "B1",
+      "stream": "build",
+      "title": "infra 10-aks — cluster, node pools, namespaces, workload identity",
+      "iteration": "s1",
+      "status": "Todo",
+      "estimate": 8,
+      "labels": ["feature", "stream:build", "infrastructure"],
+      "body": [
+        "Single AKS cluster, one namespace per track, so five tracks cost one cluster.",
+        "",
+        "Plants **CF-IAC-041**. Sizing from `docs/cost-model.md`: `Standard_D4s_v5` nodes at $0.192/hr; the free control-plane tier rather than the $73/mo Standard uptime SLA, because a demo cluster does not need a financially backed SLA.",
+        "",
+        "### Acceptance criteria",
+        "- Workload identity federated with the GitHub OIDC subject used by `deploy-aks.yml`.",
+        "- Namespaces `t1` … `t5` with separate service accounts.",
+        "- Cluster stop/start wired into `scripts/teardown.ps1` — an idle cluster is the single largest avoidable cost in this project."
+      ]
+    },
+    {
+      "id": "B1.3",
+      "type": "feature",
+      "parent": "B1",
+      "stream": "build",
+      "title": "Cost guardrails — auto-shutdown schedules and a verified teardown path",
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 3,
+      "labels": ["feature", "stream:build", "infrastructure"],
+      "body": [
+        "All five tracks running continuously is roughly **$2,785/month**. On an 8-hours-by-20-days demo schedule it is roughly **$953/month**. That difference is entirely a matter of whether anything switches the appliances off.",
+        "",
+        "### Acceptance criteria",
+        "- Auto-shutdown on the GHES and ADO Server VMs.",
+        "- `scripts/teardown.ps1` verified to leave zero billable resources.",
+        "- Cognitive-services-style soft-delete traps checked: some resources hold quota after the resource group is gone."
+      ]
+    },
+
+    {
+      "id": "B2",
+      "type": "epic",
+      "stream": "build",
+      "title": "Track 1 — GitHub Enterprise Cloud + Copilot",
+      "track": "T1",
+      "iteration": "s1",
+      "status": "In Progress",
+      "estimate": 11,
+      "labels": ["epic", "stream:build"],
+      "body": [
+        "The reference track. All twelve beats, natively, with nothing to apologise for. Every other track is scored against this one.",
+        "",
+        "Marginal Azure cost: **$0** — it runs entirely on the shared infrastructure."
+      ]
+    },
+    {
+      "id": "B2.1",
+      "type": "feature",
+      "parent": "B2",
+      "stream": "build",
+      "title": "infra 40-github — organisation, repository, rulesets, environments",
+      "track": "T1",
+      "iteration": "s1",
+      "status": "In Progress",
+      "estimate": 5,
+      "labels": ["feature", "stream:build", "infrastructure"],
+      "body": [
+        "Codifies what `scripts/bootstrap-t1.ps1` currently does imperatively, so the track can be destroyed and rebuilt between customers.",
+        "",
+        "**Watch the ordering.** The repository must be pushed before the custom secret-scanning pattern exists, or push protection rejects the seeding push and the repository can never be seeded. Terraform's dependency graph will not respect that on its own — the pattern resource needs an explicit `depends_on` against the push, or it stays out of Terraform entirely.",
+        "",
+        "### Acceptance criteria",
+        "- Ruleset from `seeds/rulesets/main-protection.json` applied to `main`.",
+        "- **Copilot added as a ruleset bypass actor** — the number-one cause of the coding agent silently doing nothing.",
+        "- `production` environment with required reviewers, for Beat 10."
+      ]
+    },
+    {
+      "id": "B2.2",
+      "type": "feature",
+      "parent": "B2",
+      "stream": "build",
+      "title": "Seed the Track 1 backlog and project board from seeds/plan/plan.json",
+      "track": "T1",
+      "iteration": "s1",
+      "status": "In Progress",
+      "estimate": 3,
+      "labels": ["feature", "stream:build"],
+      "body": [
+        "Beat 1 needs a board that looks like a real team's board, not six loose issues.",
+        "",
+        "`scripts/seed-github-plan.ps1` projects this plan into GitHub: labels, milestones per sprint, issues with **sub-issue hierarchy** (epic → feature → story), and a Projects v2 board carrying Stream, Track, Beat and Estimate fields.",
+        "",
+        "### Acceptance criteria",
+        "- Re-running the script is idempotent — it matches on exact title and does not duplicate.",
+        "- Every story with a `bodyFile` fails loudly if its title has drifted from the markdown front matter.",
+        "- The board opens on a grouped view that reads well on a projector."
+      ]
+    },
+    {
+      "id": "B2.3",
+      "type": "feature",
+      "parent": "B2",
+      "stream": "build",
+      "title": "Run of show — Track 1",
+      "track": "T1",
+      "iteration": "s1",
+      "status": "Done",
+      "estimate": 3,
+      "labels": ["feature", "stream:build", "narrative"],
+      "body": [
+        "`docs/run-of-show/track-1.md`. Seventy-five minutes, minute-by-minute, including the scripted concessions to Azure DevOps and a failure-recovery table for when a beat does not fire."
+      ]
+    },
+
+    {
+      "id": "B3",
+      "type": "epic",
+      "stream": "build",
+      "title": "Track 4 — GHEC repositories + Azure Boards, Artifacts and Test Plans",
+      "track": "T4",
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 14,
+      "labels": ["epic", "stream:build"],
+      "body": [
+        "The track that exists because it is the most common real answer: the code moves to GitHub, the programme managers stay in Boards.",
+        "",
+        "It is also the track that produces the sharpest honest caveat — the Copilot coding agent works from a Boards work item, but **only in \"create a pull request directly\" mode**. No research or plan mode, unlike the Teams and Slack integrations."
+      ]
+    },
+    {
+      "id": "B3.0",
+      "type": "story",
+      "parent": "B3",
+      "stream": "build",
+      "title": "Decision: confirm the Track 4 shape",
+      "track": "T4",
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 1,
+      "labels": ["decision", "blocked", "stream:build"],
+      "body": [
+        "The working assumption is: repositories and Actions in GHEC; Boards, Artifacts and Test Plans in Azure DevOps Services; no Azure Repos and no Azure Pipelines.",
+        "",
+        "The alternative worth considering is GHEC repositories with **Azure Pipelines** as the CI engine, which is a configuration plenty of customers actually run and which changes Beats 7, 8 and 9 substantially.",
+        "",
+        "### Acceptance criteria",
+        "- The shape is confirmed here before `infra 50-ado` is written."
+      ]
+    },
+    {
+      "id": "B3.1",
+      "type": "feature",
+      "parent": "B3",
+      "stream": "build",
+      "title": "infra 50-ado — Azure DevOps project, teams, iterations, area paths",
+      "track": "T4",
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 5,
+      "labels": ["feature", "stream:build", "infrastructure"],
+      "body": [
+        "### Acceptance criteria",
+        "- Project on the Agile process, with the sprints from this plan created as iterations and assigned to the team.",
+        "- Artifacts feed configured with upstream sources.",
+        "- Test Plans licensing confirmed — it is a separate paid extension and the demo dies without it."
+      ]
+    },
+    {
+      "id": "B3.2",
+      "type": "feature",
+      "parent": "B3",
+      "stream": "build",
+      "title": "GitHub ↔ Azure Boards integration and AB# traceability",
+      "track": "T4",
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 5,
+      "labels": ["feature", "stream:build"],
+      "body": [
+        "Wire the Azure Boards app into the GitHub organisation so `AB#123` in a commit or pull request links back to the work item.",
+        "",
+        "Be precise on stage about the limitation: the link is effectively one-directional in practice. Work-item-to-commit traceability is good; commit-to-work-item requires the developer to remember the `AB#` syntax, and nothing enforces it unless you add a check.",
+        "",
+        "### Acceptance criteria",
+        "- A pull request in GHEC visibly closes a Boards work item.",
+        "- The failure mode — a PR with no `AB#` — is demonstrated, not hidden."
+      ]
+    },
+    {
+      "id": "B3.3",
+      "type": "feature",
+      "parent": "B3",
+      "stream": "build",
+      "title": "Run of show — Track 4",
+      "track": "T4",
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 3,
+      "labels": ["feature", "stream:build", "narrative"],
+      "body": [
+        "Same twelve beats. The interesting section is Beat 1, where Boards genuinely outperforms GitHub Projects on hierarchy, capacity planning and burndown — and Beat 4, where the coding agent integration is real but reduced."
+      ]
+    },
+
+    {
+      "id": "B4",
+      "type": "epic",
+      "stream": "build",
+      "title": "Track 2 — GitHub Enterprise Server, standalone and air-gapped",
+      "track": "T2",
+      "iteration": "s3",
+      "status": "Todo",
+      "estimate": 17,
+      "labels": ["epic", "stream:build"],
+      "body": [
+        "The track that answers \"what do we lose if none of this may touch the internet?\"",
+        "",
+        "Roughly **$662/month** always-on for the appliance and its disks, or about **$263** on a demo schedule. `Standard_E8s_v5` at $0.504/hr."
+      ]
+    },
+    {
+      "id": "B4.0",
+      "type": "story",
+      "parent": "B4",
+      "stream": "build",
+      "title": "Decision: confirm a GitHub Enterprise Server licence (.ghl) is available",
+      "track": "T2",
+      "iteration": "s3",
+      "status": "Todo",
+      "estimate": 1,
+      "labels": ["decision", "blocked", "stream:build"],
+      "body": [
+        "**This blocks Tracks 2 and 3 entirely.** GHES will not start without a `.ghl` licence file, and there is no trial path that can be scripted around.",
+        "",
+        "If no licence is available, the honest options are to drop Tracks 2 and 3 and present their columns in the comparison matrix from documentation rather than from a live system — clearly labelled as such — or to obtain a licence before Sprint 3 starts.",
+        "",
+        "### Acceptance criteria",
+        "- Licence availability confirmed, or the matrix columns are explicitly marked as documented-not-demonstrated."
+      ]
+    },
+    {
+      "id": "B4.1",
+      "type": "feature",
+      "parent": "B4",
+      "stream": "build",
+      "title": "infra 20-ghes — appliance VM, data disk, DNS, TLS",
+      "track": "T2",
+      "iteration": "s3",
+      "status": "Todo",
+      "estimate": 8,
+      "labels": ["feature", "stream:build", "infrastructure", "blocked"],
+      "body": [
+        "### Acceptance criteria",
+        "- `Standard_E8s_v5` with a P20 (512 GiB) data disk — GHES will not accept an undersized data volume.",
+        "- The management console reachable and the licence uploaded.",
+        "- Auto-shutdown attached from day one."
+      ]
+    },
+    {
+      "id": "B4.2",
+      "type": "feature",
+      "parent": "B4",
+      "stream": "build",
+      "title": "Self-hosted Actions runners and offline Dependabot",
+      "track": "T2",
+      "iteration": "s3",
+      "status": "Todo",
+      "estimate": 5,
+      "labels": ["feature", "stream:build", "infrastructure"],
+      "body": [
+        "GHES has no hosted runners. Everything in Beat 7 depends on a runner you own and pay for, which is itself part of the comparison.",
+        "",
+        "Dependabot on GHES needs the advisory database synchronised. In a genuinely air-gapped deployment this is a scheduled import, and its staleness window is a real security property worth naming.",
+        "",
+        "### Acceptance criteria",
+        "- The reusable workflows from `.github/workflows/` run unmodified on the self-hosted runner, or every required modification is documented."
+      ]
+    },
+    {
+      "id": "B4.3",
+      "type": "feature",
+      "parent": "B4",
+      "stream": "build",
+      "title": "Run of show — Track 2",
+      "track": "T2",
+      "iteration": "s3",
+      "status": "Todo",
+      "estimate": 3,
+      "labels": ["feature", "stream:build", "narrative"],
+      "body": [
+        "The script must handle two hard stops gracefully: Beat 4 is unavailable with no workaround, and Copilot Spaces does not exist on GHES.",
+        "",
+        "The framing that works: *the instruction files are portable, the AI that reads them is not.*"
+      ]
+    },
+
+    {
+      "id": "B5",
+      "type": "epic",
+      "stream": "build",
+      "title": "Track 3 — GHES + GHEC via GitHub Connect",
+      "track": "T3",
+      "iteration": "s3",
+      "status": "Todo",
+      "estimate": 6,
+      "labels": ["epic", "stream:build"],
+      "body": [
+        "The hybrid. Code stays on the appliance; licences, Dependabot data and search reach the cloud. Runs on the Track 2 appliance, so its marginal cost is zero."
+      ]
+    },
+    {
+      "id": "B5.1",
+      "type": "feature",
+      "parent": "B5",
+      "stream": "build",
+      "title": "Enable GitHub Connect and Copilot licence sync",
+      "track": "T3",
+      "iteration": "s3",
+      "status": "Todo",
+      "estimate": 3,
+      "labels": ["feature", "stream:build", "infrastructure"],
+      "body": [
+        "### Acceptance criteria",
+        "- Licence sync demonstrably assigns Copilot to a GHES user from GHEC.",
+        "- The boundary is stated precisely: GitHub Connect governs licences, Dependabot, Actions and search. **It does not move issues to the cloud and it does not change secret scanning.**"
+      ]
+    },
+    {
+      "id": "B5.2",
+      "type": "feature",
+      "parent": "B5",
+      "stream": "build",
+      "title": "Run of show — Track 3",
+      "track": "T3",
+      "iteration": "s3",
+      "status": "Todo",
+      "estimate": 3,
+      "labels": ["feature", "stream:build", "narrative"],
+      "body": [
+        "The nuance that decides real architectures: the coding agent only reaches repositories that actually live in GHEC. The hybrid answer is therefore \"for the repositories you are willing to host in the cloud\" — which is a policy question, not a technical one."
+      ]
+    },
+
+    {
+      "id": "B6",
+      "type": "epic",
+      "stream": "build",
+      "title": "Track 5 — Azure DevOps Server, standalone",
+      "track": "T5",
+      "iteration": "s4",
+      "status": "Todo",
+      "estimate": 17,
+      "labels": ["epic", "stream:build"],
+      "body": [
+        "The incumbent, run honestly. It wins Beat 1 and Beat 11 outright and cannot perform Beats 2, 4, 6 or 8 at all.",
+        "",
+        "The most expensive track — roughly **$938/month** always-on — largely because the Windows licence on `Standard_D8s_v5` costs $0.75/hr against $0.384/hr for Linux."
+      ]
+    },
+    {
+      "id": "B6.0",
+      "type": "story",
+      "parent": "B6",
+      "stream": "build",
+      "title": "Decision: confirm an Azure DevOps Server licence is available",
+      "track": "T5",
+      "iteration": "s4",
+      "status": "Todo",
+      "estimate": 1,
+      "labels": ["decision", "blocked", "stream:build"],
+      "body": [
+        "**Blocks Track 5.** Same shape as the GHES licence question: without it, the column is documented rather than demonstrated, and the matrix must say so.",
+        "",
+        "### Acceptance criteria",
+        "- Licence availability confirmed before Sprint 4 planning."
+      ]
+    },
+    {
+      "id": "B6.1",
+      "type": "feature",
+      "parent": "B6",
+      "stream": "build",
+      "title": "infra 30-ado-server — Windows VM, SQL Server, ADO Server installation",
+      "track": "T5",
+      "iteration": "s4",
+      "status": "Todo",
+      "estimate": 8,
+      "labels": ["feature", "stream:build", "infrastructure", "blocked"],
+      "body": [
+        "### Acceptance criteria",
+        "- `Standard_D8s_v5` Windows with SQL Server, P20 data disk.",
+        "- Installation and collection creation automated, not clicked.",
+        "- Auto-shutdown attached. This is the most expensive idle resource in the project."
+      ]
+    },
+    {
+      "id": "B6.2",
+      "type": "feature",
+      "parent": "B6",
+      "stream": "build",
+      "title": "Self-hosted agent pool and pipeline import",
+      "track": "T5",
+      "iteration": "s4",
+      "status": "Todo",
+      "estimate": 5,
+      "labels": ["feature", "stream:build", "infrastructure"],
+      "body": [
+        "The templates in `pipelines/templates/` must run on the server's own agent pool.",
+        "",
+        "Confirm before the room: **GitHub Advanced Security for Azure DevOps is an Azure DevOps *Services* offering.** On ADO Server, Beats 5 and 6 rely on third-party tooling or pre-commit hooks. This is currently one of two unverified claims in the comparison matrix.",
+        "",
+        "### Acceptance criteria",
+        "- The three build templates run green on the self-hosted pool.",
+        "- The GHAzDO availability claim is verified against current documentation and the matrix footnote updated."
+      ]
+    },
+    {
+      "id": "B6.3",
+      "type": "feature",
+      "parent": "B6",
+      "stream": "build",
+      "title": "Run of show — Track 5",
+      "track": "T5",
+      "iteration": "s4",
+      "status": "Todo",
+      "estimate": 3,
+      "labels": ["feature", "stream:build", "narrative"],
+      "body": [
+        "Four beats cannot be performed. Say so early and without hedging — the credibility earned by naming the gaps up front is what makes Beat 1 and Beat 11, which Azure DevOps genuinely wins, land as assessment rather than salesmanship."
+      ]
+    },
+
+    {
+      "id": "B7",
+      "type": "epic",
+      "stream": "build",
+      "title": "Comparison narrative and commercial collateral",
+      "iteration": "s1",
+      "status": "In Progress",
+      "estimate": 13,
+      "labels": ["epic", "stream:build", "narrative"],
+      "body": [
+        "The artifacts that survive the meeting. A demo is forgotten in a week; a defensible matrix and a costed model get forwarded to people who were not in the room."
+      ]
+    },
+    {
+      "id": "B7.1",
+      "type": "feature",
+      "parent": "B7",
+      "stream": "build",
+      "title": "12 × 5 comparison matrix",
+      "iteration": "s1",
+      "status": "Done",
+      "estimate": 5,
+      "labels": ["feature", "stream:build", "narrative"],
+      "body": [
+        "`docs/comparison-matrix.md`. Deliberately does not conclude that GitHub Enterprise Cloud wins: Beat 1 and Beat 11 are awarded to Azure DevOps on the merits.",
+        "",
+        "Presenting the losses honestly is the entire reason the wins are believable."
+      ]
+    },
+    {
+      "id": "B7.2",
+      "type": "feature",
+      "parent": "B7",
+      "stream": "build",
+      "title": "Cost model from live Azure retail pricing",
+      "iteration": "s1",
+      "status": "Done",
+      "estimate": 3,
+      "labels": ["feature", "stream:build", "narrative"],
+      "body": [
+        "`docs/cost-model.md`, built from the Azure Retail Prices API for East US rather than from memory, with the retrieval date recorded so its staleness is auditable."
+      ]
+    },
+    {
+      "id": "B7.3",
+      "type": "story",
+      "parent": "B7",
+      "stream": "build",
+      "title": "Confirm Copilot's web-UI surface on the GHES appliance",
+      "iteration": "s3",
+      "status": "Todo",
+      "estimate": 1,
+      "labels": ["stream:build", "narrative", "blocked"],
+      "body": [
+        "The matrix carried two unverified claims. The GHAzDO one is **resolved**: Microsoft documents Advanced Security for Azure DevOps as \"only available for Azure DevOps Services\", so Beat 5 / T5 moved from partial to unavailable and the cell now contradicts nothing. See the Verification status section of `docs/comparison-matrix.md`.",
+        "",
+        "What remains cannot be settled from documentation at all: `docs.github.com` serves no Copilot pages under any `enterprise-server@3.x` version. The GHES release notes show that Copilot **pull request summaries do** exist on the appliance (CVE-2026-9132 names the endpoint) and that GitHub App Copilot settings **do not**, but the rest has to be observed.",
+        "",
+        "Depends on `B4.1` \u2014 there is no appliance to check until Track 2 stands up.",
+        "",
+        "### Acceptance criteria",
+        "- Signed in to the GHES appliance with a Copilot licence, record yes/no for: a Copilot Chat entry point in the web UI; a Copilot summary on a pull request; Copilot requestable as a reviewer; an automatic Copilot code review toggle under Settings \u2192 Code security.",
+        "- Beats 2, 3 and 6 corrected from what was observed, with the GHES version recorded next to the finding.",
+        "- Anything still unobservable stays marked unverified rather than being quietly upgraded."
+      ]
+    },
+    {
+      "id": "B7.4",
+      "type": "story",
+      "parent": "B7",
+      "stream": "build",
+      "title": "Executive summary — one page, five configurations, one recommendation",
+      "iteration": "s4",
+      "status": "Todo",
+      "estimate": 3,
+      "labels": ["stream:build", "narrative"],
+      "body": [
+        "For the audience that will never watch the demo. One page: what each configuration costs, what each cannot do, and which one to choose under which constraint.",
+        "",
+        "### Acceptance criteria",
+        "- Every claim traceable to the matrix or the cost model.",
+        "- Includes the cases where the recommendation is *keep Azure DevOps*."
+      ]
+    },
+
+    {
+      "id": "P1",
+      "type": "epic",
+      "stream": "product",
+      "title": "Quality baseline — close the coverage gaps",
+      "iteration": "s1",
+      "status": "Todo",
+      "estimate": 11,
+      "labels": ["epic", "stream:product", "testing"],
+      "body": [
+        "Contoso Fabric ships weekly and has one component with no tests at all — the one that decides what customers are charged. This epic closes that, and the two smaller gaps behind it."
+      ]
+    },
+    {
+      "id": "P1.1",
+      "type": "story",
+      "parent": "P1",
+      "stream": "product",
+      "title": "Add unit test coverage for PricingCalculator",
+      "beat": 4,
+      "iteration": "s1",
+      "status": "Todo",
+      "estimate": 5,
+      "bodyFile": "seeds/issues/01-pricing-calculator-tests.md"
+    },
+    {
+      "id": "P1.2",
+      "type": "story",
+      "parent": "P1",
+      "stream": "product",
+      "title": "Add a health and readiness contract test for the API",
+      "beat": 7,
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 3,
+      "bodyFile": "seeds/issues/03-api-contract-tests.md"
+    },
+    {
+      "id": "P1.3",
+      "type": "story",
+      "parent": "P1",
+      "stream": "product",
+      "title": "Stabilise the flaky scheduler test (CF-QUA-050)",
+      "beat": 11,
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 3,
+      "labels": ["stream:product", "testing", "reliability"],
+      "body": [
+        "`test_scheduler.py` fails roughly **one run in six** because it races a wall-clock timer against thread scheduling. It is currently deselected locally and opted back in by CI, which is exactly the compromise teams make when they cannot afford to fix a flake and cannot afford to ignore it either.",
+        "",
+        "That compromise is the point of Beat 11: a test that fails one time in six is not noise, it is a defect in the test, and the platform should be able to tell you which tests are costing you the most confidence.",
+        "",
+        "### Acceptance criteria",
+        "- The race is removed rather than papered over with a longer sleep or a retry.",
+        "- The test is re-enabled locally; the `flaky-repeats` CI input can drop back to 1.",
+        "- `seeds/FINDINGS.md` is updated — CF-QUA-050 is referenced by `scripts/verify-track.ps1` and must not drift."
+      ]
+    },
+
+    {
+      "id": "P2",
+      "type": "epic",
+      "stream": "product",
+      "title": "Orders API — search and pagination",
+      "iteration": "s1",
+      "status": "Todo",
+      "estimate": 5,
+      "labels": ["epic", "stream:product", "api"],
+      "body": [
+        "The orders search endpoint returns every matching row. It has been fine because no customer has had enough orders to notice. That is not a design."
+      ]
+    },
+    {
+      "id": "P2.1",
+      "type": "story",
+      "parent": "P2",
+      "stream": "product",
+      "title": "Add pagination to the orders search endpoint",
+      "beat": 4,
+      "iteration": "s1",
+      "status": "Todo",
+      "estimate": 5,
+      "bodyFile": "seeds/issues/02-orders-search-pagination.md"
+    },
+
+    {
+      "id": "P3",
+      "type": "epic",
+      "stream": "product",
+      "title": "Security remediation — CodeQL and secret scanning findings",
+      "iteration": "s1",
+      "status": "Todo",
+      "estimate": 16,
+      "labels": ["epic", "stream:product", "security"],
+      "body": [
+        "Four code-scanning alerts and one credential already merged into history. The two halves of this epic are worth distinguishing: the alerts are things the platform stopped at review time, the credential is something it found afterwards."
+      ]
+    },
+    {
+      "id": "P3.1",
+      "type": "story",
+      "parent": "P3",
+      "stream": "product",
+      "title": "Security: parameterise the SQL in OrdersRepository (CF-SEC-010)",
+      "beat": 6,
+      "iteration": "s1",
+      "status": "Todo",
+      "estimate": 5,
+      "bodyFile": "seeds/issues/04-sql-injection-remediation.md"
+    },
+    {
+      "id": "P3.2",
+      "type": "story",
+      "parent": "P3",
+      "stream": "product",
+      "title": "Security: sanitise the fulfilment note on the order detail page (CF-SEC-011)",
+      "beat": 6,
+      "iteration": "s1",
+      "status": "Todo",
+      "estimate": 3,
+      "bodyFile": "seeds/issues/05-xss-remediation.md"
+    },
+    {
+      "id": "P3.3",
+      "type": "story",
+      "parent": "P3",
+      "stream": "product",
+      "title": "Security: constrain report paths and callback URLs in the worker (CF-SEC-012, CF-SEC-013)",
+      "beat": 6,
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 5,
+      "bodyFile": "seeds/issues/06-worker-security-remediation.md"
+    },
+    {
+      "id": "P3.4",
+      "type": "story",
+      "parent": "P3",
+      "stream": "product",
+      "title": "Rotate and remove the leaked Contoso Fabric API key (CF-SEC-003)",
+      "beat": 5,
+      "iteration": "s1",
+      "status": "Todo",
+      "estimate": 3,
+      "labels": ["stream:product", "security", "remediation", "worker"],
+      "body": [
+        "A `ctso_live_…` key sits in `app/src/worker-python/worker/config.py`, committed and merged. Push protection did not stop it, because at the time it was committed the platform had never been told what a Contoso Fabric key looks like.",
+        "",
+        "This is the uncomfortable half of Beat 5. Push protection guards the front door; a backfill scan tells you about what is already inside. Most organisations deploy the first and never run the second.",
+        "",
+        "### Acceptance criteria",
+        "- The key is **rotated first**. Removing it from the file changes nothing about the fact that it has been readable in history to everyone with repository access.",
+        "- The value moves to a secret store; the code reads it from configuration.",
+        "- The custom pattern remains defined at **organisation** level, so the next repository is covered without anyone remembering to act.",
+        "",
+        "Removing the secret from git history is deliberately out of scope. Rewriting history on a shared branch is usually the wrong trade, and rotation is what actually ends the exposure."
+      ]
+    },
+
+    {
+      "id": "P4",
+      "type": "epic",
+      "stream": "product",
+      "title": "Supply chain and release readiness",
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 23,
+      "labels": ["epic", "stream:product", "supply-chain"],
+      "body": [
+        "Everything between \"the tests pass\" and \"we can say what we shipped\"."
+      ]
+    },
+    {
+      "id": "P4.1",
+      "type": "story",
+      "parent": "P4",
+      "stream": "product",
+      "title": "Upgrade the vulnerable dependencies (CF-DEP-020 … CF-DEP-026)",
+      "beat": 6,
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 8,
+      "labels": ["stream:product", "security", "supply-chain"],
+      "body": [
+        "Seven flagged dependencies across three ecosystems.",
+        "",
+        "Two of them are worth calling out because they change the conversation:",
+        "",
+        "- **CF-DEP-020** — `Newtonsoft.Json 12.0.1` raises `NU1903`, a **warning**, not an error. The build is green. A green build that contains a known-vulnerable dependency is the normal case, not the exception.",
+        "- **CF-DEP-026** — `next@15.1.6` was pinned as current and clean, and has since acquired CVE-2025-66478. Nobody touched the lockfile; the dependency rotted where it stood. This is the argument for continuous scanning rather than scanning at merge.",
+        "",
+        "### Acceptance criteria",
+        "- Each upgrade is a separate commit, so a regression can be bisected.",
+        "- Where an upgrade is not viable, the reason is recorded rather than the alert being dismissed.",
+        "- `seeds/FINDINGS.md` stays accurate — `scripts/verify-track.ps1` asserts against it."
+      ]
+    },
+    {
+      "id": "P4.2",
+      "type": "story",
+      "parent": "P4",
+      "stream": "product",
+      "title": "Harden the container images (CF-SUP-030, CF-SUP-031)",
+      "beat": 8,
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 5,
+      "labels": ["stream:product", "supply-chain", "security"],
+      "body": [
+        "Three Dockerfiles, each carrying a deliberate supply-chain weakness: floating base image tags and a container running as root.",
+        "",
+        "### Acceptance criteria",
+        "- Base images pinned by **digest**, not by tag. A moving tag means the image you scanned is not necessarily the image you shipped.",
+        "- Every container runs as a non-root user.",
+        "- The Next.js standalone output copy still works — `.next/standalone`, `.next/static` and `public/` are all required and are easy to break when the user changes."
+      ]
+    },
+    {
+      "id": "P4.3",
+      "type": "story",
+      "parent": "P4",
+      "stream": "product",
+      "title": "Publish an SBOM and build provenance for every release",
+      "beat": 8,
+      "iteration": "s3",
+      "status": "Todo",
+      "estimate": 5,
+      "labels": ["stream:product", "supply-chain"],
+      "body": [
+        "### Acceptance criteria",
+        "- An SBOM is attached to every release artifact, not generated on request.",
+        "- Provenance attestation is verifiable by someone who does not have access to the build system — which is the only test of provenance that means anything."
+      ]
+    },
+    {
+      "id": "P4.4",
+      "type": "story",
+      "parent": "P4",
+      "stream": "product",
+      "title": "Fix the infrastructure findings (CF-IAC-040, CF-IAC-041)",
+      "beat": 12,
+      "iteration": "s3",
+      "status": "Todo",
+      "estimate": 3,
+      "labels": ["stream:product", "security", "infrastructure"],
+      "body": [
+        "A storage account allowing public blob access without HTTPS enforcement, and an AKS misconfiguration.",
+        "",
+        "The governance point: these were committed as code and reviewed by a human who approved them. Policy-as-code catches what review does not, because reviewers read diffs for intent and rarely for configuration drift.",
+        "",
+        "### Acceptance criteria",
+        "- Both findings remediated in the infrastructure source, not in the portal.",
+        "- A policy check runs in the pipeline so the same misconfiguration cannot return."
+      ]
+    },
+    {
+      "id": "P4.5",
+      "type": "story",
+      "parent": "P4",
+      "stream": "product",
+      "title": "Require an approval gate before production deployment",
+      "beat": 10,
+      "iteration": "s2",
+      "status": "Todo",
+      "estimate": 2,
+      "labels": ["stream:product", "reliability"],
+      "body": [
+        "`deploy-aks.yml` currently reaches production unattended.",
+        "",
+        "### Acceptance criteria",
+        "- A `production` environment with required reviewers.",
+        "- Deployment credentials issued through OIDC federation. No long-lived secret should exist for this path.",
+        "- A rejected deployment is demonstrated, not only an approved one."
+      ]
+    }
+  ]
+}

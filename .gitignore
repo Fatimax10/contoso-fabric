@@ -1,0 +1,58 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+TestResults/
+coverage/
+*.coverage
+*.trx
+
+## Node
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+
+## Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+## Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+# .terraform.lock.hcl is deliberately NOT ignored. It pins provider versions and hashes,
+# so committing it is what makes `terraform init` reproducible across machines and CI.
+
+## Build artifacts produced by the workflows
+artifacts/
+
+## Azure / tooling
+.azure/
+*.pubxml
+kubeconfig*
+
+## Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+## Local secrets — NOTE: seeds/planted secrets are committed ON PURPOSE (see seeds/FINDINGS.md)
+.env
+.env.local
+!app/src/api-dotnet/Contoso.Fabric.Api/appsettings.Development.json

@@ -1,0 +1,96 @@
+# Default values for the contoso-fabric chart.
+#
+# The deploy-aks workflow overrides only `image.registry` and `image.tag`. Everything else is
+# intended to be stable across tracks, so that a diff between two tracks' deployments shows
+# platform differences rather than chart drift.
+
+image:
+  registry: crcontosofabric.azurecr.io
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Set per track by the caller: t1-ghec, t2-ghes, t3-hybrid, t4-ghec-ado, t5-ado-server.
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+api:
+  enabled: true
+  replicas: 2
+  repository: contoso-fabric-api
+  containerPort: 8080
+  service:
+    type: ClusterIP
+    port: 80
+  env:
+    ASPNETCORE_ENVIRONMENT: Production
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+web:
+  enabled: true
+  replicas: 2
+  repository: contoso-fabric-web
+  containerPort: 3000
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+worker:
+  enabled: true
+  replicas: 1
+  repository: contoso-fabric-worker
+  env:
+    CONTOSO_BATCH_INTERVAL: "5"
+    CONTOSO_QUEUE_NAME: order-events
+  resources:
+    requests:
+      cpu: 25m
+      memory: 96Mi
+    limits:
+      memory: 256Mi
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: ""
+
+# Pod-level hardening applied to every workload in the chart. Note that this is where the
+# worker image's missing USER instruction (CF-SUP-031) gets papered over at runtime:
+# `runAsNonRoot` forces a non-root UID even though the image would happily run as root.
+# Worth saying out loud - the cluster policy compensates, but the image is still wrong, and
+# the next platform that runs it may not compensate.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

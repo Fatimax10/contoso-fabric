@@ -1,0 +1,50 @@
+# Azure DevOps pipeline template: build and type check the Next.js storefront.
+
+parameters:
+  - name: nodeVersion
+    type: string
+    default: '20.x'
+  - name: publishArtifacts
+    type: boolean
+    default: true
+  - name: workingDirectory
+    type: string
+    default: 'app/src/web-next'
+
+steps:
+  - task: NodeTool@0
+    displayName: Install Node.js
+    inputs:
+      versionSpec: ${{ parameters.nodeVersion }}
+
+  # ADO has no equivalent of setup-node's built-in `cache: npm`, so caching is an explicit
+  # task you have to remember to add. Small thing, but it is a fair example of "batteries
+  # included" versus "assemble it yourself".
+  - task: Cache@2
+    displayName: Cache npm
+    inputs:
+      key: 'npm | "$(Agent.OS)" | ${{ parameters.workingDirectory }}/package-lock.json'
+      restoreKeys: |
+        npm | "$(Agent.OS)"
+      path: $(Pipeline.Workspace)/.npm
+
+  - script: npm ci --cache $(Pipeline.Workspace)/.npm --no-audit --no-fund
+    displayName: Install
+    workingDirectory: ${{ parameters.workingDirectory }}
+
+  - script: npm run typecheck
+    displayName: Type check
+    workingDirectory: ${{ parameters.workingDirectory }}
+
+  - script: npm run build
+    displayName: Build
+    workingDirectory: ${{ parameters.workingDirectory }}
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+
+  - ${{ if eq(parameters.publishArtifacts, true) }}:
+      - task: PublishPipelineArtifact@1
+        displayName: Upload standalone bundle
+        inputs:
+          targetPath: ${{ parameters.workingDirectory }}/.next/standalone
+          artifact: web-next

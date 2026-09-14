@@ -1,0 +1,76 @@
+# Azure DevOps pipeline template: lint and test the Python batch worker.
+#
+# Note the includeFlaky parameter: the planted CF-QUA-050 race is deselected by default in
+# pyproject.toml and opted back into here, exactly as the GitHub workflow does. Running the
+# same flake through both platforms is what makes the Beat 11 comparison meaningful - ADO's
+# Test Analytics genuinely detects and reports flaky tests natively, which GitHub does not.
+
+parameters:
+  - name: pythonVersion
+    type: string
+    default: '3.12'
+  - name: includeFlaky
+    type: boolean
+    default: true
+  - name: flakyRepeats
+    type: number
+    default: 5
+  - name: workingDirectory
+    type: string
+    default: 'app/src/worker-python'
+
+steps:
+  - task: UsePythonVersion@0
+    displayName: Install Python
+    inputs:
+      versionSpec: ${{ parameters.pythonVersion }}
+
+  # requirements-dev.txt on purpose, not requirements.txt: the planted vulnerable pins stay a
+  # manifest finding without being installed into the agent.
+  - script: python -m pip install --disable-pip-version-check -r requirements-dev.txt
+    displayName: Install dev dependencies
+    workingDirectory: ${{ parameters.workingDirectory }}
+
+  - script: python -m ruff check .
+    displayName: Lint
+    workingDirectory: ${{ parameters.workingDirectory }}
+
+  - script: >-
+      python -m pytest
+      --junitxml=$(Agent.TempDirectory)/pytest.xml
+      --cov=worker
+      --cov-report=xml:$(Agent.TempDirectory)/coverage.xml
+    displayName: Test
+    workingDirectory: ${{ parameters.workingDirectory }}
+
+  - ${{ if eq(parameters.includeFlaky, true) }}:
+      - script: |
+          failures=0
+          for i in $(seq 1 ${{ parameters.flakyRepeats }}); do
+            if python -m pytest -q -m flaky --junitxml=$(Agent.TempDirectory)/pytest-flaky-$i.xml; then
+              echo "run $i: passed"
+            else
+              echo "run $i: FAILED"
+              failures=$((failures + 1))
+            fi
+          done
+          echo "flaky failures: $failures of ${{ parameters.flakyRepeats }}"
+        displayName: Test (flaky selection)
+        workingDirectory: ${{ parameters.workingDirectory }}
+        continueOnError: true
+
+  - task: PublishTestResults@2
+    displayName: Publish test results
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFormat: JUnit
+      testResultsFiles: 'pytest*.xml'
+      searchFolder: $(Agent.TempDirectory)
+      mergeTestResults: true
+      testRunTitle: Python worker
+
+  - task: PublishCodeCoverageResults@2
+    displayName: Publish code coverage
+    condition: succeededOrFailed()
+    inputs:
+      summaryFileLocation: $(Agent.TempDirectory)/coverage.xml

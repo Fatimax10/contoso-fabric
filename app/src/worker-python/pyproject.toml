@@ -1,0 +1,26 @@
+[project]
+name = "contoso-fabric-worker"
+version = "1.4.0"
+description = "Contoso Fabric background worker: consumes order events and renders reports."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+# CF-QUA-050 is a genuinely flaky test kept for the Beat 11 incident story. It is deselected
+# by default so local runs are deterministic; CI opts back in with `-m "flaky or not flaky"`.
+addopts = "-q -m 'not flaky'"
+markers = [
+    "flaky: intermittently failing by design (CF-QUA-050, see seeds/FINDINGS.md)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.coverage.run]
+source = ["worker"]
+omit = ["tests/*"]

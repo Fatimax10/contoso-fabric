@@ -1,0 +1,53 @@
+# Azure DevOps CI pipeline - the Track 4 / Track 5 counterpart of .github/workflows/ci.yml.
+#
+# Point an ADO pipeline at this file. In Track 4 the repository still lives in GitHub and ADO
+# reaches into it via a GitHub service connection; in Track 5 the repository lives in Azure
+# Repos on the ADO Server instance. The YAML below is identical either way, which is exactly
+# the demonstration: the pipeline definition is not what differentiates the tracks.
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - name: buildConfiguration
+    value: Release
+
+stages:
+  - stage: build
+    displayName: Build and test
+    jobs:
+      - job: dotnet
+        displayName: .NET API
+        steps:
+          - template: templates/build-dotnet.yml
+            parameters:
+              configuration: $(buildConfiguration)
+
+      - job: node
+        displayName: Next.js storefront
+        steps:
+          - template: templates/build-node.yml
+
+      - job: python
+        displayName: Python worker
+        steps:
+          - template: templates/build-python.yml
+            parameters:
+              includeFlaky: true
+
+      # There is no CodeQL job here, and that absence is deliberate and worth pausing on.
+      # GitHub Advanced Security for Azure DevOps covers secret scanning and dependency
+      # scanning, but CodeQL code scanning is a GitHub-repository feature. In Track 4 the code
+      # lives in GitHub so CodeQL still runs there; in Track 5 (ADO Server only) there is no
+      # first-party SAST at all and you are shopping for a third-party scanner.
+      # See docs/comparison-matrix.md, Beat 6.

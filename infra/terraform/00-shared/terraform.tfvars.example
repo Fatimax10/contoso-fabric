@@ -1,0 +1,19 @@
+# Copy to terraform.tfvars and edit. terraform.tfvars is gitignored.
+
+# Required. Or export ARM_SUBSCRIPTION_ID and delete this line.
+subscription_id = "00000000-0000-0000-0000-000000000000"
+
+# 3-8 lowercase characters. Used to build globally unique registry and storage names.
+name_prefix = "ctsofab"
+
+location = "swedencentral"
+
+# 30 is the included floor. See docs/cost-model.md before raising it.
+log_retention_days = 30
+
+# Leave true for the showcase. CF-IAC-040 is a deliberate misconfiguration Beat 8 depends on.
+plant_iac_findings = true
+
+tags = {
+  # customer = "contoso"
+}

@@ -1,0 +1,61 @@
+# Reusable workflow: build and type check the Next.js storefront.
+
+name: build-node
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        type: string
+        default: ubuntu-latest
+      node-version:
+        type: string
+        default: '20.x'
+      upload-artifacts:
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build & typecheck
+    runs-on: ${{ inputs.runs-on }}
+    defaults:
+      run:
+        working-directory: app/src/web-next
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: app/src/web-next/package-lock.json
+
+      # `npm ci` is deliberate: it installs exactly what package-lock.json pins, so the
+      # planted axios 0.21.1 (CF-DEP-021) and lodash 4.17.11 (CF-DEP-022) stay reproducible
+      # for the Dependabot beat instead of silently floating to a patched release.
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Upload standalone bundle
+        if: inputs.upload-artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-next
+          path: |
+            app/src/web-next/.next/standalone
+            app/src/web-next/.next/static
+            app/src/web-next/public
+          if-no-files-found: error

@@ -1,0 +1,94 @@
+# Reusable workflow: lint and test the Python batch worker.
+#
+# Note the `include-flaky` input. The planted flaky test (CF-QUA-050) is deselected by the
+# `-m 'not flaky'` default in pyproject.toml, so it is invisible on a developer laptop. CI
+# opts back in. That asymmetry IS the Beat 11 story: green locally, red in the pipeline.
+
+name: build-python
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        type: string
+        default: ubuntu-latest
+      python-version:
+        type: string
+        default: '3.12'
+      include-flaky:
+        description: Also run tests marked `flaky` (the planted CF-QUA-050 race).
+        type: boolean
+        default: true
+      flaky-repeats:
+        description: How many times to repeat the flaky selection, to surface the race reliably.
+        type: number
+        default: 5
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: lint & test
+    runs-on: ${{ inputs.runs-on }}
+    defaults:
+      run:
+        working-directory: app/src/worker-python
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+          cache-dependency-path: app/src/worker-python/requirements-dev.txt
+
+      # Deliberately requirements-dev.txt, NOT requirements.txt. The vulnerable runtime pins
+      # (CF-DEP-023/024/025) stay a Dependabot manifest finding without ever being installed
+      # into the CI environment.
+      - name: Install dev dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
+
+      - name: Lint
+        run: python -m ruff check --output-format=github .
+
+      - name: Test
+        run: >-
+          python -m pytest
+          --junitxml=${{ github.workspace }}/artifacts/pytest.xml
+          --cov=worker
+          --cov-report=xml:${{ github.workspace }}/artifacts/coverage.xml
+
+      # Separate, clearly-labelled step so that when it goes red the failure is unambiguous
+      # in the checks UI. `continue-on-error` keeps the pipeline honest: the flake is
+      # reported, not hidden, but it does not block the rest of the demo.
+      - name: Test (flaky selection)
+        if: inputs.include-flaky
+        continue-on-error: true
+        run: |
+          failures=0
+          for i in $(seq 1 ${{ inputs.flaky-repeats }}); do
+            echo "::group::flaky run $i"
+            if python -m pytest -q -m flaky; then
+              echo "run $i: passed"
+            else
+              echo "run $i: FAILED"
+              failures=$((failures + 1))
+            fi
+            echo "::endgroup::"
+          done
+          echo "flaky failures: $failures of ${{ inputs.flaky-repeats }}"
+          echo "### Flaky test report" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`tests/test_scheduler.py::test_timer_flushes_the_batch_before_the_deadline\` (CF-QUA-050)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Failed **$failures** of **${{ inputs.flaky-repeats }}** runs." >> "$GITHUB_STEP_SUMMARY"
+          if [ "$failures" -gt 0 ]; then exit 1; fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-test-results
+          path: artifacts
+          if-no-files-found: warn

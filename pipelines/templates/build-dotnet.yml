@@ -1,0 +1,88 @@
+# Azure DevOps pipeline template: build and test the .NET API + shared library.
+#
+# This is the Track 4 / Track 5 counterpart of .github/workflows/build-dotnet.yml. The two
+# files are kept deliberately close in shape so the comparison beat can put them side by side
+# and the differences that remain are real platform differences, not authoring style.
+#
+# Consume it with:
+#   steps:
+#     - template: templates/build-dotnet.yml
+#       parameters:
+#         configuration: Release
+
+parameters:
+  - name: configuration
+    type: string
+    default: Release
+  - name: dotnetVersion
+    type: string
+    default: '9.0.x'
+  - name: publishArtifacts
+    type: boolean
+    default: true
+  - name: workingDirectory
+    type: string
+    default: 'app/src'
+
+steps:
+  - task: UseDotNet@2
+    displayName: Install .NET SDK
+    inputs:
+      packageType: sdk
+      version: ${{ parameters.dotnetVersion }}
+
+  # NuGet audit is enabled via Directory.Build.props, so the planted Newtonsoft.Json 12.0.1
+  # raises NU1903 here exactly as it does on GitHub. Note what ADO does NOT give you: there
+  # is no Dependabot equivalent that opens a pull request to fix it. That gap is the point of
+  # the comparison.
+  - script: dotnet restore ContosoFabric.sln
+    displayName: Restore
+    workingDirectory: ${{ parameters.workingDirectory }}
+
+  - script: dotnet build ContosoFabric.sln --configuration ${{ parameters.configuration }} --no-restore
+    displayName: Build
+    workingDirectory: ${{ parameters.workingDirectory }}
+
+  - script: >-
+      dotnet test ContosoFabric.sln
+      --configuration ${{ parameters.configuration }}
+      --no-build
+      --logger "trx;LogFileName=dotnet-tests.trx"
+      --collect "XPlat Code Coverage"
+      --results-directory $(Agent.TempDirectory)/test-results
+    displayName: Test
+    workingDirectory: ${{ parameters.workingDirectory }}
+
+  # Native test reporting is genuinely good in ADO - richer than the GitHub checks UI out of
+  # the box, and it is where the flaky-test analytics live. Say so; it is a fair point for ADO.
+  - task: PublishTestResults@2
+    displayName: Publish test results
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFormat: VSTest
+      testResultsFiles: '**/*.trx'
+      searchFolder: $(Agent.TempDirectory)/test-results
+      mergeTestResults: true
+      failTaskOnFailedTests: true
+      testRunTitle: .NET
+
+  - task: PublishCodeCoverageResults@2
+    displayName: Publish code coverage
+    condition: succeededOrFailed()
+    inputs:
+      summaryFileLocation: $(Agent.TempDirectory)/test-results/**/coverage.cobertura.xml
+
+  - ${{ if eq(parameters.publishArtifacts, true) }}:
+      - script: >-
+          dotnet publish api-dotnet/Contoso.Fabric.Api/Contoso.Fabric.Api.csproj
+          --configuration ${{ parameters.configuration }}
+          --no-build
+          --output $(Build.ArtifactStagingDirectory)/api
+        displayName: Publish API
+        workingDirectory: ${{ parameters.workingDirectory }}
+
+      - task: PublishPipelineArtifact@1
+        displayName: Upload API package
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/api
+          artifact: api-dotnet

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Contoso.Fabric.SharedLib</RootNamespace>
+    <AssemblyName>Contoso.Fabric.SharedLib</AssemblyName>
+    <PackageId>Contoso.Fabric.SharedLib</PackageId>
+    <Version>1.4.0</Version>
+    <Description>Pricing and tax rules shared by the Contoso Fabric API and worker.</Description>
+  </PropertyGroup>
+
+</Project>

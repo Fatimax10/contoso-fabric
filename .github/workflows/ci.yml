@@ -1,0 +1,50 @@
+# Caller workflow: the pull request gate.
+#
+# This is what a developer actually experiences in Beat 4-7. Everything below is a thin call
+# into the reusable workflows in this same directory, which is the point: the platform team
+# owns the reusable definitions, product teams own three lines of YAML.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same PR. On a demo day with a room full of people pushing,
+# this is the difference between a 2-minute queue and a 20-minute one.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet:
+    uses: ./.github/workflows/build-dotnet.yml
+    with:
+      runs-on: ubuntu-latest
+
+  node:
+    uses: ./.github/workflows/build-node.yml
+    with:
+      runs-on: ubuntu-latest
+
+  python:
+    uses: ./.github/workflows/build-python.yml
+    with:
+      runs-on: ubuntu-latest
+      include-flaky: true
+
+  codeql:
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    uses: ./.github/workflows/codeql.yml
+    with:
+      runs-on: ubuntu-latest
+      queries: security-extended

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: contoso-fabric
+description: Contoso Fabric - the polyglot demo workload for the DevOps platform showcase.
+type: application
+
+# Chart version tracks the chart; appVersion tracks the application. They move independently
+# on purpose - bumping a probe timeout is a chart change, not an application release.
+version: 0.1.0
+appVersion: "1.4.0"
+
+keywords:
+  - demo
+  - showcase
+maintainers:
+  - name: Platform Engineering

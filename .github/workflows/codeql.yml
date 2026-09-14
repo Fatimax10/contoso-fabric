@@ -1,0 +1,76 @@
+# Reusable workflow: CodeQL analysis across all three languages.
+#
+# This is Beat 6. The planted findings this is expected to surface:
+#   CF-SEC-010  cs/sql-injection        api-dotnet/.../Data/OrdersRepository.cs
+#   CF-SEC-011  js/xss                  web-next/src/app/orders/[id]/page.tsx
+#   CF-SEC-012  py/path-injection       worker-python/worker/reports.py
+#   CF-SEC-013  py/ssrf                 worker-python/worker/callbacks.py
+#
+# `security-extended` is used deliberately: the default suite alone does not reliably raise
+# all four, and part of the message is that query-suite selection is a real decision with
+# real signal/noise trade-offs, not a checkbox.
+
+name: codeql
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        type: string
+        default: ubuntu-latest
+      queries:
+        description: CodeQL query suite (default, security-extended, security-and-quality).
+        type: string
+        default: security-extended
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze ${{ matrix.language }}
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 60
+
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: csharp
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: ${{ inputs.queries }}
+
+      # C# needs a real build so CodeQL can observe compilation. Autobuild is avoided here
+      # because the solution lives under app/src rather than the repository root.
+      - name: Build C#
+        if: matrix.language == 'csharp'
+        working-directory: app/src
+        run: dotnet build ContosoFabric.sln --configuration Release
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

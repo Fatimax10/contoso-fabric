@@ -1,0 +1,158 @@
+# Reusable workflow: build container images, push to ACR, and deploy to AKS via Helm.
+#
+# Authentication is OIDC federated credentials only - there is no ACR admin password and no
+# service principal secret anywhere in this repository. That is Beat 9: the pipeline holds no
+# long-lived credential at all, and `permissions: id-token: write` is what makes it possible.
+#
+# The `environment` input is what makes Beat 10 (approval gates) work. Configure the
+# `production` environment in repository settings with required reviewers; this workflow does
+# not need to change.
+
+name: deploy-aks
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        type: string
+        default: ubuntu-latest
+      environment:
+        description: GitHub environment to deploy through (drives approvals and secrets).
+        type: string
+        required: true
+      namespace:
+        description: Kubernetes namespace. One per track, so tracks do not collide.
+        type: string
+        required: true
+      registry:
+        description: ACR login server, e.g. crcontosofabric.azurecr.io
+        type: string
+        required: true
+      cluster-name:
+        type: string
+        required: true
+      resource-group:
+        type: string
+        required: true
+      image-tag:
+        description: Image tag to build and deploy. Defaults to the commit SHA.
+        type: string
+        default: ''
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_TAG: ${{ inputs.image-tag != '' && inputs.image-tag || github.sha }}
+
+jobs:
+  build-images:
+    name: build & push images
+    runs-on: ${{ inputs.runs-on }}
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ACR remote build rather than docker/build-push-action. It needs no local Docker
+      # daemon, which keeps this workflow identical on GitHub-hosted, self-hosted, and ARC
+      # runners - and ARC runner pods have no Docker socket by design.
+      - name: Build API image
+        run: >-
+          az acr build
+          --registry ${{ inputs.registry }}
+          --image contoso-fabric-api:${{ env.IMAGE_TAG }}
+          --file api-dotnet/Dockerfile
+          app/src
+        working-directory: .
+
+      - name: Build worker image
+        run: >-
+          az acr build
+          --registry ${{ inputs.registry }}
+          --image contoso-fabric-worker:${{ env.IMAGE_TAG }}
+          --file Dockerfile
+          app/src/worker-python
+
+      - name: Build web image
+        run: >-
+          az acr build
+          --registry ${{ inputs.registry }}
+          --image contoso-fabric-web:${{ env.IMAGE_TAG }}
+          --file Dockerfile
+          app/src/web-next
+
+  deploy:
+    name: deploy to ${{ inputs.environment }}
+    needs: build-images
+    runs-on: ${{ inputs.runs-on }}
+    environment:
+      name: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get AKS credentials
+        run: >-
+          az aks get-credentials
+          --resource-group ${{ inputs.resource-group }}
+          --name ${{ inputs.cluster-name }}
+          --overwrite-existing
+
+      - uses: azure/setup-helm@v4
+
+      - name: Helm upgrade
+        run: >-
+          helm upgrade --install contoso-fabric app/deploy/helm
+          --namespace ${{ inputs.namespace }}
+          --create-namespace
+          --set image.registry=${{ inputs.registry }}
+          --set image.tag=${{ env.IMAGE_TAG }}
+          --atomic
+          --timeout 5m
+          --wait
+
+      - name: Smoke test
+        run: |
+          kubectl --namespace ${{ inputs.namespace }} rollout status deploy/contoso-fabric-api --timeout=180s
+          kubectl --namespace ${{ inputs.namespace }} rollout status deploy/contoso-fabric-web --timeout=180s
+          kubectl --namespace ${{ inputs.namespace }} get pods -o wide
+
+      - name: Summary
+        run: |
+          {
+            echo "### Deployed to \`${{ inputs.environment }}\`"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Namespace | \`${{ inputs.namespace }}\` |"
+            echo "| Cluster | \`${{ inputs.cluster-name }}\` |"
+            echo "| Image tag | \`${{ env.IMAGE_TAG }}\` |"
+            echo "| Commit | ${{ github.sha }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
