@@ -6,7 +6,7 @@
 # See seeds/FINDINGS.md before "upgrading" anything here.
 
 requests==2.31.0      # CF-DEP-024  GHSA-9wx4-h78v-vm56  .netrc credential leak on redirect
-urllib3==2.0.6        # CF-DEP-025  GHSA-34jh-p97f-mpxf  request body leaked on cross-host redirect
+urllib3==2.8.0        # CF-DEP-025  GHSA-34jh-p97f-mpxf  request body leaked on cross-host redirect
 jinja2==3.1.2         # CF-DEP-023  GHSA-h75v-3vvj-5mfj  XSS via the xmlattr filter
 azure-servicebus==7.12.2
 azure-identity==1.19.0
